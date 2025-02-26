@@ -3920,21 +3920,22 @@ class MindMapGenerator:
             ```
 
             VERIFICATION GUIDELINES:
-            1. The {node_type} can be EXPLICITLY mentioned OR reasonably inferred from the document
-            2. Logical synthesis and summarization of concepts in the document is acceptable
-            3. If the {node_type} represents a valid category, grouping, or abstraction of content in the document, consider it supported
-            4. Only mark as unsupported if it contains specific claims, facts, or statements that contradict the document or introduce entirely new information
-            5. Be especially cautious about specific dates, statistics, or named entities - these should exist in the document
-            6. Return a clear YES/NO decision followed by a brief explanation
+            1. The {node_type} can be EXPLICITLY mentioned OR reasonably inferred from the document, even through logical deduction
+            2. Logical synthesis, interpretation, and summarization of concepts in the document are STRONGLY encouraged
+            3. Content that represents a reasonable conclusion or implication from the document should be VERIFIED
+            4. Content that groups, categorizes, or abstracts ideas from the document should be VERIFIED
+            5. High-level insights that connect multiple concepts from the document should be VERIFIED
+            6. Only mark as unsupported if it contains specific claims that DIRECTLY CONTRADICT the document
+            7. GIVE THE BENEFIT OF THE DOUBT - if the content could plausibly be derived from the document, verify it
+            8. When uncertain, LEAN TOWARDS VERIFICATION rather than rejection - mindmaps are meant to be interpretive, not literal
+            9. For details specifically, allow for more interpretive latitude - they represent insights derived from the document
+            10. Consider historical and domain context that would be natural to include in an analysis
 
-            Instructions:
-            1. Consider if the {node_type} content is discussed directly OR could be reasonably derived from the document
-            2. Remember that mindmaps often use abstraction and categorization to organize information
-            3. Answer ONLY with one of these formats:
+            Answer ONLY with one of these formats:
             - "YES: [brief explanation of how it's supported or can be derived]" 
-            - "NO: [brief explanation of why it contains information not in the document]"
+            - "NO: [brief explanation of why it contains information that directly contradicts the document]"
 
-            Be generous in your interpretation - only flag content that clearly introduces new facts not derivable from the document."""
+            IMPORTANT: Remember to be GENEROUS in your interpretation. If there's any reasonable way the content could be derived from the document, even through multiple logical steps, mark it as verified. Only reject content that introduces completely new facts not derivable from the document or directly contradicts it."""
 
                 try:
                     response = await self._retry_generate_completion(
