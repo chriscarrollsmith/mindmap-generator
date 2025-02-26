@@ -169,5 +169,5 @@ folder_of_source_documents__original_format
 folder_of_source_documents__converted_to_plaintext
 *.zip
 venv/
-# .env
+.env
 emoji_cache.json
