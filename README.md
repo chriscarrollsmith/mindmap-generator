@@ -99,7 +99,7 @@ API_PROVIDER="OPENAI"  # Options: "OPENAI", "CLAUDE", "DEEPSEEK", or "GEMINI"
 1. Edit the `mindmap_generator.py` file to specify your input document:
 
 ```python
-input_file = "sample_input_document_as_markdown__durnovo_memo.md"  # <-- Change this to your input file path
+input_file = "sample_input_document_as_markdown__durnovo_memo.md"  # <-- Change
 ```
 
 2. Run the generator:
@@ -480,31 +480,16 @@ The Mindmap Generator excels in various scenarios:
 - **API Documentation**: Organize endpoint functionality into logical groupings
 - **System Requirements**: Structure complex requirement documents
 
-## 🔮 Future Development Directions
-
-Several exciting enhancements are planned:
-
-1. **Multi-Document Integration**: Combine insights from multiple related documents
-2. **Interactive Web Interface**: Web-based upload and generation
-3. **Fine-Tuning Options**: User-configurable parameters for customized output
-4. **Specialized Domain Adapters**: Enhanced processing for specific industries
-5. **Knowledge Graph Integration**: Connect generated mindmaps to existing knowledge bases
-6. **Temporal Analysis**: Track concept evolution across document versions
-7. **Collaborative Editing**: Allow multiple users to refine generated mindmaps
-
 ## 📜 License
 
 MIT License
 
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
 ## 🔗 Related Work
 
-If you find this project useful, you might also be interested in:
-- Document summarization tools
-- Knowledge extraction frameworks
-- Semantic mapping applications
-- Visual thinking software
-- LLM orchestration systems
+If you find this project useful, you might also be interested in my [other open-source projects](https://github.com/Dicklesworthstone):
+
+- [LLM Aided OCR](https://github.com/Dicklesworthstone/llm_aided_ocr)
+- [Your Source to Prompt](https://github.com/Dicklesworthstone/your-source-to-prompt.html)
+- [Swiss Army Llama](https://github.com/Dicklesworthstone/swiss_army_llama)
+- [Fast Vector Similarity](https://github.com/Dicklesworthstone/fast_vector_similarity)
+- [PPP Loan Fraud Analysis](https://github.com/Dicklesworthstone/ppp_loan_fraud_analysis)
