@@ -32,6 +32,8 @@ The Mindmap Generator is a sophisticated document analysis system that extracts 
 
 The system is built to work with a variety of LLM providers (OpenAI, Anthropic/Claude, DeepSeek, Google Gemini) and optimizes for both cost-efficiency and output quality.
 
+You can read a detailed blog post about the making of this project and the various challenges and design considerations that went into the design and engineering of it [here](https://fixmydocuments.com/blog/04_making_of_the_mindmap_generator).
+
 ## 📋 Features
 
 - **Document Type Detection**: Automatically adapts extraction strategies based on document type
