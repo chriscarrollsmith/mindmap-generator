@@ -10,8 +10,8 @@ An intelligent document analysis tool that uses Large Language Models to generat
     <td width="50%"><strong>Markdown Outline</strong></td>
   </tr>
   <tr>
-    <td><img src="screenshots/mermaid_diagram_example_durnovo.webp" alt="Mermaid mindmap diagram example"></td>
-    <td><img src="screenshots/mindmap_outline_md_example_durnovo.webp" alt="Markdown outline example"></td>
+    <td><img src="https://github.com/Dicklesworthstone/mindmap-generator/raw/refs/heads/main/screenshots/mermaid_diagram_example_durnovo.webp" alt="Mermaid mindmap diagram example"></td>
+    <td><img src="https://github.com/Dicklesworthstone/mindmap-generator/raw/refs/heads/main/screenshots/mindmap_outline_md_example_durnovo.webp" alt="Markdown outline example"></td>
   </tr>
   <tr>
     <td><em>Interactive HTML visualization with expandable nodes</em></td>
@@ -28,6 +28,7 @@ The Mindmap Generator is a sophisticated document analysis system that extracts 
 - Ensures factual accuracy by verifying against the source document
 - Eliminates redundant or overlapping concepts
 - Generates outputs in multiple formats (Mermaid syntax, HTML, Markdown)
+- See an example Mermaid Diagram in the live editor [here](https://mermaid.live/edit#pako:eNqlWtuO3MYR_ZXGvIwEzC7WkmJ5901XywHsCFolARL5oYfsIdtLdtPd5IxGgt_y6CBA4pckCIwAcb7B3-MfiD8hp6ov5MzOaBfJQivscsju6qpTp04V9_2ssKWaXcxabcpWdm-MwNedOz9__5c_3L0bfktX_vyDeFZYY1tdCGlK8dI2uteFbMQTa7z6elCmUF7YlfitdNOHeQGs-K14pdeycVvxWPUbpYx4ZqqGlqLvT5VrpdkK6YUUT2Qvm63vxco6Xm53Nfr6_U9__fd_fvzTxAzZNFqSDQvhh6KmleKic6zZ6Mq0yvRio_taPBp877Q8eTGYSsIisiBag5txG_0Ltz53tCjf8WrwXsuFKJXqlFGlKPVae43j88fKwwzZ43pfK9FZWkTDMDrERrrTL4-f4jUeMHJNp3CtF05ix-VxLy1EJx1OPTTSNdvJMdXbThqyiOKgey9e6KoWlwq-eN4o1S9ErXClZ-vx_2h84RSbLoXHZcXPG7XWvVw2SiDwq0YX_cEz_Pz9dz-O2Chs26keMYERdPKqsUucq5XuSvVhL6e8HRyhRRs2YqWxswvoWFDglhaeN7Jn83AzTBa9Dcdj92qHjRpryL-q7TSW5KWB4xDaRpQwx1Ds9o0GGP_1j9Hg3wyNUU4uNQEpLnPZO3ijwqePEqqwNCGd3fABPOZl13vL4vHkRfHOGk4VHF74XrVi5WwLNHk3dIwfJ0slnB16QnNylwC-XKF7chFs3Ch5xXHUZuUkDj0U_eDUAl4CfNwS3jMVYLhWrt9G5_g-GLQ94BMk6GdtJ2EeYv8Fg_Gl3SgnEMhPQxBfs13soKHrgLwntcSid4-BgmCtWkthxNMRb7R8z3h3cLJeK6H9FJbLrXg6OGPXFoDurIMztng6PjVv9EqdwISTEoCtBZ27qho1_1C-nIoXClnrC6eXcDytA09cUbApZ7SPqboIKU-fl2oVEsJrHHklC3KmFPMVUdNcIDQAujrFEWH9eEZEoqU7B1Mq5wvr4naVk8ilbTpFRkKEs6gpT6NNlDXTBFgQwmvp9TtaubabSBUdRwfbG9uLrwB72NdbG1zFkVoOdK1UPdxAucChDavieT-4NeXcFAt37vz0t-8Ix4mrlzdxdQHXOawW8zyd7FoFiOvu1JCAsrTVdeqPsLtF2gVqNifBtHj8njhNUwptag0WQ4LJcg03yIo8GZ8RsnJEpSF54FIOjy-0HTwgblSF4AZatwDCGnZNWUatVWM7Ki1Ud6pKec47lc4ZaY3iJEXnbDmEDOtQuIqtKGqriV2QCjWi2ddkkNnh3qlHPkjEO75A8vjMYvsUoU3RDCXZSeAbzEob7Wsc8RUdh3aC73yiVPjy6wErwUjdbCT5pN9Yd7Vg2DaUuZ6rzWA6p1CaVGnoaTJYimeDs53CmVADd6FMe-O75WrTQok4o98xOnNaBxMaazmrjp0e7PXtHwFL22U1MPJ2SjGQl_EwqQ07YMvHmsq1m0AQ9ciKz4EFnbPkw_KDGK60xRCkhXSG0l1S1kUkBh6B5UNTkkRB9qZUwlYlDkOOraXztYCXwPKUrJ5ExhoRCySeE86UqUrQZXK5s4AIZ86V2sYqy45P6K6sLf0kUsnxE4D6K9Zt7c65k6_9raC2p6_SEVW7tE3JtL4vuXB6aYx6Kx5bjzLOZ3uh3Duk2xpWAKNNMzCCE-tlgYeUMFltoTxWexaHMO4eB7HxVFpY59CKe_X5uLKhEM-fAjwVqBO68ldULebiqaPShX3Imc8QKsrwVGPKEBKnCsVZ1tUKzsa3mchS4Wu96ilNisHTSlnRRG4glyCisK9VgdJAMVty6Zg_am2bIQG6mmZAyn5KAUpa1hioVr11_HnWirhEtRlhKg44Arn13Q_iMwg1R378tQExgOoubUGWvsr7L3KijSoCuUPq4YsUhMskP-7eJIWTNACflBxSlF4ftnR5yzmJquAEFWpbyLY9eYybknLf1ETv9EgrvSfP4NeSImkIHC3RQWB1z5Ky0VdKNEGzIvEA4GVwNl0Cma90f-KRvIgGQqP6nF3I3EoF5Q_94HEMWVKhwa0yPN3IJT4d2J2BMzbMEbg7eOmdijKJNjxYo68z2iPknU1F0E1JTYZ8OAmiAV0GMHq0VjOdPgsJdmjlHbq8fZGm0PbqLdiQMI2OMWijxFS266znxmFOmdSSl7iDIAnL5EL9UQEqNQlHnDUNQon4wMee7glgpMiZQJJ005xbMr9FuW1sxToMnQ7kB6K0qbGIkyvuToQuoaCYxEjZ2Y0BOZsylxGUMQuu1h1VvCgXsbcuQ5jmQRC2qpddzfHd1YFy6HGZzqd9Ce0caiTAutJFyvycvqFa563R84xNJc7Ea6MuBpyMXppPqgLO03IycOJUyAikP50-J1MIsb-pO-W4hQKXNCx0CYy0Xc1d3-4MQI4COuVeTGXW0SkRKKcGtCqhbZ-mRKATWqa1qNDIhpJQS5grZMfCiEoWXNjjmxa1Du44FZ9x-QMUlBfXGIO4gKpma5F0OJEj8UEZ5KP0D08QI3rgBOl1nAKquC9otgiY68ia0CdAUrai0xzAoPZ8f5K0QC3tDfWGvT0RV9cHCpE4Mrch6J9Dr2LXUA8nUxB6-IkcCumHgKXXA1QCWGbC2XTKRtfQCpzsqwqg13QLXLUOIaNOr4-7sZtl41FlySZrkon4MGYmgcCIoYO84DQ04rk27Ee9EpcbhXIjvrJYczwAEYDBen6v-OcbpjWbc5_bJDT6JLpDS0GxhxSBOVTokWeDixHZ7U9u4X_0ChYgV0nIlrprLHEtNJPswP4FadckefJohsmtGCs0aSGIa-BTJ3oi5yTWi6sW3P-skNMyMB0KV6u5IzTB264KhClTEEBM1PvRxKXFmh21wzvqi-c6WCkcgPBi2Rk4EiXmigwqm-0JCSsawCQu2DkQC7W11YhbqYg8w7CN6l_mqqNaMYxaDk1TaIGno0MvgxQCSkK7cPcWmrMlGLCUVEVtAq-Dez3CT3SKPg8-XMriCrRVxvyeNDO1kustc2_TKJo7IQg1sWk1UPYE-hlbqL3ehxB64gfNjgwDPpZpoW7h-a4JMwNUCe4HPESK2-lBVU4qUJwSfBl6cWyYzO2oeRoXmkiW4-wQuJCuINGXMLMzRcxFMzZXXrl10l3gWYRHRU8QDReOQ5XQFSaGXGPmg4Gtg6PJSFLpotwaif5ikesUbUJiCUec2AUlMUQ8rECSKiKUlemHkzRlEHzl4dA4xqXg8HFYFmA7qik0sZ1wu_Sddmm4wriIa_ig_Oj5Y6qP1kdJRzzVVXQbiiAPXVCYAEjeIWhDgoH1gX8msIzkNCnDQ0doxA86lgrAiQS6KvqYkiRUwQeIG4BTHm6Ad2YrO90wNyvOXxNyr-MI-DaiLUtxpqCdZfIkeYOsGDuzKDyXziLpxtkFrqMeh6qS-YCjYHkGkvHPWpVa4SzQw7SCEpirYJGnvn5YkYIiNt4tEikTeNawseNMzalVo4os2GkS7WChwbU4voCzsiljZ3Wbyp2GHFH0xdzg0Ti2HwvkJCd_CVFjUj_zHNGnlnJBo71goeyjBKQ5iQ-DQ7STJ8mpocbiDPjQx3FDQ00Hh8CHUVJulXNuauRmx70fwzHVKnQHOgppxrcMQ608Hc0BH0NzqPXY7VoYo-Nwihh_FwNJjOjcQKb2wJ6wf8BVR94uTVeelJVXahxMXG9Pj6x-A9saCmOjgO-9YVlqzdVE0iTsH5iM8ThsZywTlAPNUmXnk1Ql0UgvZHZHeHya3FzkQZ6roMCD9ipLMip-4nmgzQlSfHDY8SjNrfJ4KIrWzR6iwqwqzq94aB_rwi7fZ0eM2MStwBwQEqsjdwt7w6txJEs9URiaxpds05cbO_OOhMkD3Pj3f1L0Rhly6JXP0-jnJzUAqUwVXtmkGvM8ysqXPJm5jTqZqMUVpAM1cqMk58nddQ2ZSis2fonIRmp4rZf85i5BJcBCtzyzDXm_arj1ogfJk7EFOGXA8gug2tlN8DT2PEmnimV4ut8KYYKZHb14CYWLdEGv-1AB9_tZlKQxw2j9nWRubKDRUUWtLDjeNuWNoqbAs7F3on0eyyYp_McQVlfhnSaQGCk0w0IF54477r-HA_zQJelwuKKgbKQ3i97H5irnW0suiPXF20bGkWuYo43NGIvnvfea1wdQ8aUPVwcOw3QqfjwdRzRFlkaMw3tVRmN8D7HN3EbHyR0G9gM3c01MD1CrMBikS3yzmhiLfZa4an0gO5KMJvZapPlNoh0OCDbkvjsgNHBX2jbOM4k4Ai1FTsqEl493eAC5r23Gl_4g8yYfJ1dUOOwylZfcctzA61lN2m4IfRCzVtHEGTKsJweQ1s2vh7KkbBfz3ZBLpFY1qsqJcFx8uK8fReo4tZiW2czLYEi1joOTTa2RxcXB-SGPywCR1eBYXe2PTG_xlwn_TzdMbWtWMDk6UWechJ6Y_5IidcH6WBccQS77SSebWthjvStzU7ymWRdNehzPr17WWm1CgCormxvUXRpcJlo6MLL0_-vM8nazwgbFAEXxZNKQQcmGCRaSzZAqTnlJvueQ7Dp_OmNMNoUE9EQu05na1F-Ladc29oenX84Ws5b8rcvZxew9ue_NjF_rvZld4EcQqkQpfzN7Y77BrTiVvdyaYnYBLaMWM0d_3TG7WMH3-G3oSgTlqaYJYZtugTb7nbXTX2cX72dvZxf3Hp6dPvjk4wcPzh8-PD8_v__gF4vZFpfvnd679-Cjj--fnZ19dH52_tH9bxazd7zC2enD80_O8Anu_uTB_bOH59_8F4cLXVI)
 
 The system is built to work with a variety of LLM providers (OpenAI, Anthropic/Claude, DeepSeek, Google Gemini) and optimizes for both cost-efficiency and output quality.
 
@@ -42,7 +43,7 @@ The system is built to work with a variety of LLM providers (OpenAI, Anthropic/C
   - Interactive HTML with Mermaid rendering
   - Markdown outline
 - **Cost Optimization**: Designed to work efficiently with value-priced LLMs
-- **Rich Logging**: Detailed, color-coded progress tracking
+- **Rich Logging**: Detailed, color-coded progress tracking (see an example [here](https://github.com/Dicklesworthstone/mindmap-generator/raw/refs/heads/main/screenshots/logging_output_during_run.webp))
 
 ## ⚙️ Installation
 
@@ -111,6 +112,77 @@ python mindmap_generator.py
    - `{filename}_mindmap__{provider}.txt` - Mermaid syntax
    - `{filename}_mindmap__{provider}.html` - Interactive HTML visualization
    - `{filename}_mindmap_outline__{provider}.md` - Markdown outline
+
+## 📜 The Durnovo Memo: A Test Case Across LLM Providers
+
+This repository includes a fascinating historical document as a test case - the famous Durnovo memo from 1914, which remarkably predicted World War I and the Russian Revolution. For more about this incredible document, see my article about it [here](https://youtubetranscriptoptimizer.com/blog/04_the_most_impressive_prediction).
+
+### Historical Significance
+
+The [Durnovo Memorandum](sample_input_document_as_markdown__durnovo_memo.md) was written by Pyotr Durnovo, a Russian statesman, to Tsar Nicholas II in February 1914 - months before the outbreak of World War I. With astonishing prescience, Durnovo warned about:
+
+- The inevitability of war between Germany and Russia if European tensions continued
+- How such a war would lead to social revolution in Russia
+- The collapse of monarchies across Europe
+- The specific dangers Russia faced in a prolonged European conflict
+
+The memo has been hailed as one of the most accurate political predictions in modern history, making it an excellent test document for our mindmap generator.
+
+### Cross-Provider Comparison
+
+We've processed this document using all four supported LLM providers to demonstrate how each handles the complex historical content. The results showcase each provider's strengths and unique approaches to concept extraction and organization.
+
+#### OpenAI (GPT-4o-mini)
+
+OpenAI's model produced a concise, well-structured mindmap with clear hierarchical organization:
+
+- [Mermaid Syntax](mindmap_outputs/sample_input_document_as_markdown__durnovo_memo_mindmap__openai.txt) (2.8 KB)
+- [Interactive HTML](mindmap_outputs/sample_input_document_as_markdown__durnovo_memo_mindmap__openai.html) (5.7 KB)
+- [Markdown Outline](mindmap_outputs/sample_input_document_as_markdown__durnovo_memo_mindmap_outline__openai.md) (2.5 KB)
+
+GPT-4o-mini excels at producing compact, efficient mindmaps that capture essential concepts without redundancy. Its output is characterized by clear categorization and precise language.
+
+#### Anthropic (Claude)
+
+Claude produced a more detailed mindmap with richer contextual information:
+
+- [Mermaid Syntax](mindmap_outputs/sample_input_document_as_markdown__durnovo_memo_mindmap__anthropic.txt) (4.1 KB)
+- [Interactive HTML](mindmap_outputs/sample_input_document_as_markdown__durnovo_memo_mindmap__anthropic.html) (7.3 KB)
+- [Markdown Outline](mindmap_outputs/sample_input_document_as_markdown__durnovo_memo_mindmap_outline__anthropic.md) (3.8 KB)
+
+Claude's approach tends to include more nuanced historical context and captures subtle relationships between concepts. Its output is particularly strong in preserving the memo's analytical reasoning.
+
+#### DeepSeek
+
+DeepSeek generated the most comprehensive mindmap with extensive subtopics and details:
+
+- [Mermaid Syntax](mindmap_outputs/sample_input_document_as_markdown__durnovo_memo_mindmap__deepseek.txt) (9.0 KB)
+- [Interactive HTML](mindmap_outputs/sample_input_document_as_markdown__durnovo_memo_mindmap__deepseek.html) (15 KB)
+- [Markdown Outline](mindmap_outputs/sample_input_document_as_markdown__durnovo_memo_mindmap_outline__deepseek.md) (8.4 KB)
+
+DeepSeek's output is notable for its thoroughness and depth of analysis. It extracts more subtleties from the document but occasionally at the cost of some redundancy.
+
+#### Google Gemini
+
+Gemini created a balanced mindmap with strong thematic organization:
+
+- [Mermaid Syntax](mindmap_outputs/sample_input_document_as_markdown__durnovo_memo_mindmap__gemini.txt) (5.5 KB)
+- [Interactive HTML](mindmap_outputs/sample_input_document_as_markdown__durnovo_memo_mindmap__gemini.html) (9.6 KB)
+- [Markdown Outline](mindmap_outputs/sample_input_document_as_markdown__durnovo_memo_mindmap_outline__gemini.md) (5.0 KB)
+
+Gemini's approach focuses on thematic coherence, with particularly strong extraction of geopolitical concepts and causal relationships between events.
+
+### Key Observations from Cross-Provider Testing
+
+This multi-provider approach reveals interesting patterns:
+
+1. **Content Organization Differences**: Each provider structures the document's concepts differently, revealing their unique approaches to conceptual organization
+2. **Detail Granularity Variance**: The level of detail varies significantly, with DeepSeek providing the most comprehensive extraction and OpenAI the most concise
+3. **Emoji Selection Patterns**: Each model has distinct tendencies in selecting representative emojis for concepts
+4. **Historical Context Sensitivity**: Models differ in how they handle historical context, with Claude showing particular strength in preserving historical nuance
+5. **Structured Knowledge Representation**: The differences highlight various approaches to knowledge organization from the different AI research teams
+
+The sample outputs serve as both demonstration of the tool's capabilities and an interesting comparative study of how different LLM providers approach the same complex historical document.
 
 ## 🔍 How It Works: The Architecture
 
@@ -283,7 +355,7 @@ The system implements detailed token usage tracking:
 3. **Comparative Analysis**: Usage patterns are analyzed to identify optimization opportunities
 4. **Trend Monitoring**: Usage patterns over time help identify shifts in performance
 
-This tracking provides transparency and supports ongoing optimization efforts.
+This tracking provides transparency and supports ongoing optimization efforts. You can see an example of what it looks like [here](https://github.com/Dicklesworthstone/mindmap-generator/raw/refs/heads/main/screenshots/token_usage_report.webp).
 
 ### Cost Efficiency Strategies
 
