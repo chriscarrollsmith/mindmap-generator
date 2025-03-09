@@ -173,4 +173,3 @@ venv/
 emoji_cache.json
 .env
 .specstory
-*.md
