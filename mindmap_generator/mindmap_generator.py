@@ -1,564 +1,26 @@
 import re
 import os
-import random
 import json
 import time
 import asyncio
 import hashlib
-import base64
-import zlib
-import logging
 import copy
-from datetime import datetime
-from enum import Enum, auto
-from typing import Dict, Any, List, Union, Optional, Tuple, Set
+from typing import Dict, Any, List, Union, Optional, Set
 from termcolor import colored
-import aiofiles
-from openai import AsyncOpenAI
-from anthropic import AsyncAnthropic
-from google import genai
 from fuzzywuzzy import fuzz
-from decouple import Config as DecoupleConfig, RepositoryEnv
-
-config = DecoupleConfig(RepositoryEnv('.env'))
-
-def get_logger():
-    """Mindmap-specific logger with colored output for generation stages."""
-    logger = logging.getLogger("mindmap_generator")
-    if not logger.handlers:
-        handler = logging.StreamHandler()
-        
-        # Custom formatter that adds colors specific to mindmap generation stages
-        def colored_formatter(record):
-            message = record.msg
-            
-            # Color-code specific mindmap generation stages and metrics
-            if "Starting mindmap generation" in message:
-                message = colored("🚀 " + message, "cyan", attrs=["bold"])
-            elif "Detected document type:" in message:
-                doc_type = message.split(": ")[1]
-                message = f"📄 Document Type: {colored(doc_type, 'yellow', attrs=['bold'])}"
-            elif "Extracting main topics" in message:
-                message = colored("📌 " + message, "blue")
-            elif "Processing topic" in message:
-                # Highlight topic name and progress
-                parts = message.split("'")
-                if len(parts) >= 3:
-                    topic_name = parts[1]
-                    message = f"🔍 Processing: {colored(topic_name, 'green')} {colored(parts[2], 'white')}"
-            elif "Successfully extracted" in message:
-                if "topics" in message:
-                    message = colored("✅ " + message, "green")
-                elif "subtopics" in message:
-                    message = colored("➕ " + message, "cyan")
-                elif "details" in message:
-                    message = colored("📝 " + message, "blue")
-            elif "Approaching word limit" in message:
-                message = colored("⚠️ " + message, "yellow")
-            elif "Error" in message or "Failed" in message:
-                message = colored("❌ " + message, "red", attrs=["bold"])
-            elif "Completion status:" in message:
-                # Highlight progress metrics
-                message = message.replace("Completion status:", colored("📊 Progress:", "cyan", attrs=["bold"]))
-                metrics = message.split("Progress:")[1]
-                parts = metrics.split(",")
-                colored_metrics = []
-                for part in parts:
-                    if ":" in part:
-                        label, value = part.split(":")
-                        colored_metrics.append(f"{label}:{colored(value, 'yellow')}")
-                message = "📊 Progress:" + ",".join(colored_metrics)
-            elif "Mindmap generation completed" in message:
-                message = colored("🎉 " + message, "green", attrs=["bold"])
-                
-            # Format timestamp and add any extra attributes
-            timestamp = datetime.fromtimestamp(record.created).strftime('%H:%M:%S')
-            log_message = f"{colored(timestamp, 'white')} {message}"
-            
-            # Add any extra attributes in grey
-            if hasattr(record, 'extra') and record.extra:
-                extra_str = ' '.join(f"{k}={v}" for k, v in record.extra.items())
-                log_message += f" {colored(f'[{extra_str}]', 'grey')}"
-                
-            return log_message
-            
-        class MindmapFormatter(logging.Formatter):
-            def format(self, record):
-                return colored_formatter(record)
-                
-        handler.setFormatter(MindmapFormatter())
-        logger.addHandler(handler)
-        logger.setLevel(logging.INFO)
-    return logger
+from .config import get_logger
+from .document_optimizer import DocumentOptimizer
+from .models import DocumentType, ContentItem
+from .llm_client import LLMClient
 
 logger = get_logger()
 
-class Config:
-    """Minimal configuration for document processing."""
-    # API configuration
-    OPENAI_API_KEY = config.get("OPENAI_API_KEY")
-    ANTHROPIC_API_KEY = config.get('ANTHROPIC_API_KEY')
-    DEEPSEEK_API_KEY = config.get('DEEPSEEK_API_KEY')
-    GEMINI_API_KEY = config.get('GEMINI_API_KEY')  # Add Gemini API key
-    API_PROVIDER = config.get('API_PROVIDER') # "OPENAI", "CLAUDE", "DEEPSEEK", or "GEMINI"
-    
-    # Model settings
-    CLAUDE_MODEL_STRING = "claude-3-5-haiku-latest"
-    OPENAI_COMPLETION_MODEL = "gpt-4o-mini-2024-07-18"
-    DEEPSEEK_COMPLETION_MODEL = "deepseek-chat"  # "deepseek-reasoner" or "deepseek-chat"
-    DEEPSEEK_CHAT_MODEL = "deepseek-chat"
-    DEEPSEEK_REASONER_MODEL = "deepseek-reasoner"
-    GEMINI_MODEL_STRING = "gemini-2.0-flash-lite"  # Add Gemini model string
-    CLAUDE_MAX_TOKENS = 200000
-    OPENAI_MAX_TOKENS = 8192
-    DEEPSEEK_MAX_TOKENS = 8192
-    GEMINI_MAX_TOKENS = 8192  # Add Gemini max tokens
-    TOKEN_BUFFER = 500
-    
-    # Cost tracking (prices in USD per token)
-    OPENAI_INPUT_TOKEN_PRICE = 0.15/1000000  # GPT-4o-mini input price
-    OPENAI_OUTPUT_TOKEN_PRICE = 0.60/1000000  # GPT-4o-mini output price
-    ANTHROPIC_INPUT_TOKEN_PRICE = 0.80/1000000  # Claude 3.5 Haiku input price
-    ANTHROPIC_OUTPUT_TOKEN_PRICE = 4.00/1000000  # Claude 3.5 Haiku output price
-    DEEPSEEK_CHAT_INPUT_PRICE = 0.27/1000000  # Chat input price (cache miss)
-    DEEPSEEK_CHAT_OUTPUT_PRICE = 1.10/1000000  # Chat output price
-    DEEPSEEK_REASONER_INPUT_PRICE = 0.14/1000000  # Reasoner input price (cache miss)
-    DEEPSEEK_REASONER_OUTPUT_PRICE = 2.19/1000000  # Reasoner output price (includes CoT)
-    GEMINI_INPUT_TOKEN_PRICE = 0.075/1000000  # Gemini 2.0 Flash Lite input price estimate
-    GEMINI_OUTPUT_TOKEN_PRICE = 0.30/1000000  # Gemini 2.0 Flash Lite output price estimate
-
-class TokenUsageTracker:
-    def __init__(self):
-        self.total_input_tokens = 0
-        self.total_output_tokens = 0
-        self.total_cost = 0
-        self.call_counts = {}
-        self.token_counts_by_task = {}
-        self.cost_by_task = {}
-        
-        # Categorize tasks for better reporting
-        self.task_categories = {
-            'topics': ['extracting_main_topics', 'consolidating_topics', 'detecting_document_type'],
-            'subtopics': ['extracting_subtopics', 'consolidate_subtopics'],
-            'details': ['extracting_details', 'consolidate_details'],
-            'similarity': ['checking_content_similarity'],
-            'verification': ['verifying_against_source'],
-            'emoji': ['selecting_emoji'],
-            'other': []  # Catch-all for uncategorized tasks
-        }
-        
-        # Initialize counters for each category
-        self.call_counts_by_category = {category: 0 for category in self.task_categories}
-        self.token_counts_by_category = {category: {'input': 0, 'output': 0} for category in self.task_categories}
-        self.cost_by_category = {category: 0 for category in self.task_categories}
-        
-    def update(self, input_tokens: int, output_tokens: int, task: str):
-        """Update token usage with enhanced task categorization."""
-        # Update base metrics
-        self.total_input_tokens += input_tokens
-        self.total_output_tokens += output_tokens
-        
-        # Calculate cost based on provider
-        task_cost = 0
-        if Config.API_PROVIDER == "CLAUDE":
-            task_cost = (
-                input_tokens * Config.ANTHROPIC_INPUT_TOKEN_PRICE + 
-                output_tokens * Config.ANTHROPIC_OUTPUT_TOKEN_PRICE
-            )
-        elif Config.API_PROVIDER == "DEEPSEEK":
-            # Different pricing for chat vs reasoner model
-            if Config.DEEPSEEK_COMPLETION_MODEL == Config.DEEPSEEK_CHAT_MODEL:
-                task_cost = (
-                    input_tokens * Config.DEEPSEEK_CHAT_INPUT_PRICE + 
-                    output_tokens * Config.DEEPSEEK_CHAT_OUTPUT_PRICE
-                )
-            else:  # reasoner model
-                task_cost = (
-                    input_tokens * Config.DEEPSEEK_REASONER_INPUT_PRICE + 
-                    output_tokens * Config.DEEPSEEK_REASONER_OUTPUT_PRICE
-                )
-        elif Config.API_PROVIDER == "GEMINI":
-            task_cost = (
-                input_tokens * Config.GEMINI_INPUT_TOKEN_PRICE + 
-                output_tokens * Config.GEMINI_OUTPUT_TOKEN_PRICE
-            )
-        else:  # OPENAI
-            task_cost = (
-                input_tokens * Config.OPENAI_INPUT_TOKEN_PRICE + 
-                output_tokens * Config.OPENAI_OUTPUT_TOKEN_PRICE
-            )
-            
-        self.total_cost += task_cost
-        
-        # Update task-specific metrics
-        if task not in self.token_counts_by_task:
-            self.token_counts_by_task[task] = {'input': 0, 'output': 0}
-            self.cost_by_task[task] = 0
-            
-        self.token_counts_by_task[task]['input'] += input_tokens
-        self.token_counts_by_task[task]['output'] += output_tokens
-        self.call_counts[task] = self.call_counts.get(task, 0) + 1
-        self.cost_by_task[task] = self.cost_by_task.get(task, 0) + task_cost
-        
-        # Update category metrics
-        category_found = False
-        for category, tasks in self.task_categories.items():
-            if any(task.startswith(t) for t in tasks) or (category == 'other' and not category_found):
-                self.call_counts_by_category[category] += 1
-                self.token_counts_by_category[category]['input'] += input_tokens
-                self.token_counts_by_category[category]['output'] += output_tokens
-                self.cost_by_category[category] += task_cost
-                category_found = True
-                break
-    
-    def get_enhanced_summary(self) -> Dict[str, Any]:
-        """Get enhanced usage summary with category breakdowns and percentages."""
-        total_calls = sum(self.call_counts.values())
-        total_cost = sum(self.cost_by_task.values())
-        
-        # Calculate percentages for call counts by category
-        call_percentages = {}
-        for category, count in self.call_counts_by_category.items():
-            call_percentages[category] = (count / total_calls * 100) if total_calls > 0 else 0
-            
-        # Calculate percentages for token counts by category
-        token_percentages = {}
-        for category, counts in self.token_counts_by_category.items():
-            total_tokens = counts['input'] + counts['output']
-            token_percentages[category] = (total_tokens / (self.total_input_tokens + self.total_output_tokens) * 100) if (self.total_input_tokens + self.total_output_tokens) > 0 else 0
-            
-        # Calculate percentages for cost by category
-        cost_percentages = {}
-        for category, cost in self.cost_by_category.items():
-            cost_percentages[category] = (cost / total_cost * 100) if total_cost > 0 else 0
-        
-        return {
-            "total_input_tokens": self.total_input_tokens,
-            "total_output_tokens": self.total_output_tokens,
-            "total_tokens": self.total_input_tokens + self.total_output_tokens,
-            "total_cost_usd": round(self.total_cost, 6),
-            "total_calls": total_calls,
-            "calls_by_task": dict(self.call_counts),
-            "token_counts_by_task": self.token_counts_by_task,
-            "cost_by_task": {task: round(cost, 6) for task, cost in self.cost_by_task.items()},
-            "categories": {
-                category: {
-                    "calls": count,
-                    "calls_percentage": round(call_percentages[category], 2),
-                    "tokens": self.token_counts_by_category[category],
-                    "tokens_percentage": round(token_percentages[category], 2),
-                    "cost_usd": round(self.cost_by_category[category], 6),
-                    "cost_percentage": round(cost_percentages[category], 2)
-                }
-                for category, count in self.call_counts_by_category.items()
-            }
-        }
-        
-    def print_usage_report(self):
-        """Print a detailed usage report to the console."""
-        summary = self.get_enhanced_summary()
-        
-        # Helper to format USD amounts
-        def fmt_usd(amount):
-            return f"${amount:.6f}"
-        
-        # Helper to format percentages
-        def fmt_pct(percentage):
-            return f"{percentage:.2f}%"
-        
-        # Helper to format numbers with commas
-        def fmt_num(num):
-            return f"{num:,}"
-        
-        # Find max task name length for proper column alignment
-        max_task_length = max([len(task) for task in summary['calls_by_task'].keys()], default=30)
-        task_col_width = max(max_task_length + 2, 30)
-        
-        report = [
-            "\n" + "="*80,
-            colored("📊 TOKEN USAGE AND COST REPORT", "cyan", attrs=["bold"]),
-            "="*80,
-            "",
-            f"Total Tokens: {fmt_num(summary['total_tokens'])} (Input: {fmt_num(summary['total_input_tokens'])}, Output: {fmt_num(summary['total_output_tokens'])})",
-            f"Total Cost: {fmt_usd(summary['total_cost_usd'])}",
-            f"Total API Calls: {fmt_num(summary['total_calls'])}",
-            "",
-            colored("BREAKDOWN BY CATEGORY", "yellow", attrs=["bold"]),
-            "-"*80,
-            "Category".ljust(15) + "Calls".rjust(10) + "Call %".rjust(10) + "Tokens".rjust(12) + "Token %".rjust(10) + "Cost".rjust(12) + "Cost %".rjust(10),
-            "-"*80
-        ]
-        
-        for category, data in summary['categories'].items():
-            if data['calls'] > 0:
-                tokens = data['tokens']['input'] + data['tokens']['output']
-                report.append(
-                    category.ljust(15) + 
-                    fmt_num(data['calls']).rjust(10) + 
-                    fmt_pct(data['calls_percentage']).rjust(10) + 
-                    fmt_num(tokens).rjust(12) + 
-                    fmt_pct(data['tokens_percentage']).rjust(10) + 
-                    fmt_usd(data['cost_usd']).rjust(12) + 
-                    fmt_pct(data['cost_percentage']).rjust(10)
-                )
-                
-        report.extend([
-            "-"*80,
-            "",
-            colored("DETAILED BREAKDOWN BY TASK", "yellow", attrs=["bold"]),
-            "-"*80,
-            "Task".ljust(task_col_width) + "Calls".rjust(8) + "Input".rjust(12) + "Output".rjust(10) + "Cost".rjust(12),
-            "-"*80
-        ])
-        
-        # Sort tasks by cost (highest first)
-        sorted_tasks = sorted(
-            summary['cost_by_task'].items(), 
-            key=lambda x: x[1], 
-            reverse=True
-        )
-        
-        for task, cost in sorted_tasks:
-            if cost > 0:
-                report.append(
-                    task.ljust(task_col_width) + 
-                    fmt_num(summary['calls_by_task'][task]).rjust(8) + 
-                    fmt_num(summary['token_counts_by_task'][task]['input']).rjust(12) + 
-                    fmt_num(summary['token_counts_by_task'][task]['output']).rjust(10) + 
-                    fmt_usd(cost).rjust(12)
-                )
-                
-        report.extend([
-            "-"*80,
-            "",
-            f"Report generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-            "="*80,
-        ])
-        
-        logger.info("\n".join(report))
-        
-class DocumentOptimizer:
-    """Minimal document optimizer that only implements what's needed for mindmap generation."""
-    def __init__(self):
-        self.openai_client = AsyncOpenAI(api_key=Config.OPENAI_API_KEY)
-        self.anthropic_client = AsyncAnthropic(api_key=Config.ANTHROPIC_API_KEY)
-        self.deepseek_client = AsyncOpenAI(
-            api_key=Config.DEEPSEEK_API_KEY,
-            base_url="https://api.deepseek.com"
-        )
-        # Initialize Google GenAI client - no need for configure method
-        self.gemini_client = genai.Client(
-            api_key=Config.GEMINI_API_KEY,
-            http_options={"api_version": "v1alpha"}
-        )
-        self.token_tracker = TokenUsageTracker()
-        
-    async def generate_completion(self, prompt: str, max_tokens: int = 5000, request_id: str = None, task: Optional[str] = None) -> Optional[str]:
-        try:
-            # Log the start of the request with truncated prompt
-            prompt_preview = " ".join(prompt.split()[:40])  # Get first 40 words
-            logger.info(
-                f"\n{colored('🔄 API Request', 'cyan', attrs=['bold'])}\n"
-                f"Task: {colored(task or 'unknown', 'yellow')}\n"
-                f"Provider: {colored(Config.API_PROVIDER, 'blue')}\n"
-                f"Prompt preview: {colored(prompt_preview + '...', 'white')}"
-            )
-            if Config.API_PROVIDER == "CLAUDE":
-                async with self.anthropic_client.messages.stream(
-                    model=Config.CLAUDE_MODEL_STRING,
-                    max_tokens=max_tokens,
-                    temperature=0.7,
-                    messages=[{"role": "user", "content": prompt}]
-                ) as stream:
-                    message = await stream.get_final_message()
-                    response_preview = " ".join(message.content[0].text.split()[:30])
-                    self.token_tracker.update(
-                        message.usage.input_tokens,
-                        message.usage.output_tokens,
-                        task or "unknown"
-                    )
-                    logger.info(
-                        f"\n{colored('✅ API Response', 'green', attrs=['bold'])}\n"
-                        f"Response preview: {colored(response_preview + '...', 'white')}\n"
-                        f"Tokens: {colored(f'Input={message.usage.input_tokens}, Output={message.usage.output_tokens}', 'yellow')}"
-                    )
-                    return message.content[0].text
-            elif Config.API_PROVIDER == "DEEPSEEK":
-                kwargs = {
-                    "model": Config.DEEPSEEK_COMPLETION_MODEL,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "max_tokens": max_tokens,
-                    "stream": False
-                }
-                if Config.DEEPSEEK_COMPLETION_MODEL == Config.DEEPSEEK_CHAT_MODEL:
-                    kwargs["temperature"] = 0.7
-                response = await self.deepseek_client.chat.completions.create(**kwargs)
-                response_preview = " ".join(response.choices[0].message.content.split()[:30])
-                self.token_tracker.update(
-                    response.usage.prompt_tokens,
-                    response.usage.completion_tokens,
-                    task or "unknown"
-                )
-                logger.info(
-                    f"\n{colored('✅ API Response', 'green', attrs=['bold'])}\n"
-                    f"Response preview: {colored(response_preview + '...', 'white')}\n"
-                    f"Tokens: {colored(f'Input={response.usage.prompt_tokens}, Output={response.usage.completion_tokens}', 'yellow')}"
-                )
-                return response.choices[0].message.content
-            elif Config.API_PROVIDER == "GEMINI":
-                # Use Gemini's live connection API for interactive chat
-                response_text = ""
-                # Track token usage for Gemini (estimated based on input/output text)
-                char_to_token_ratio = 4  # rough estimate: 4 chars per token
-                
-                # Use the correct models.generate_content method as shown in the documentation
-                try:
-                    response = self.gemini_client.models.generate_content(
-                        model=Config.GEMINI_MODEL_STRING,
-                        contents=prompt,
-                    )
-                    response_text = response.text
-                except Exception as model_error:
-                    logger.error(f"Gemini API error: {str(model_error)}")
-                    return None
-                
-                # Estimate token usage (Gemini doesn't provide token counts directly)
-                estimated_input_tokens = len(prompt) // char_to_token_ratio
-                estimated_output_tokens = len(response_text) // char_to_token_ratio
-                
-                response_preview = " ".join(response_text.split()[:30])
-                self.token_tracker.update(
-                    estimated_input_tokens,
-                    estimated_output_tokens,
-                    task or "unknown"
-                )
-                logger.info(
-                    f"\n{colored('✅ API Response', 'green', attrs=['bold'])}\n"
-                    f"Response preview: {colored(response_preview + '...', 'white')}\n"
-                    f"Tokens (estimated): {colored(f'Input≈{estimated_input_tokens}, Output≈{estimated_output_tokens}', 'yellow')}"
-                )
-                return response_text
-            elif Config.API_PROVIDER == "OPENAI":
-                response = await self.openai_client.chat.completions.create(
-                    model=Config.OPENAI_COMPLETION_MODEL,
-                    messages=[{"role": "user", "content": prompt}],
-                    max_tokens=max_tokens,
-                    temperature=0.7
-                )
-                response_preview = " ".join(response.choices[0].message.content.split()[:30])
-                self.token_tracker.update(
-                    response.usage.prompt_tokens,
-                    response.usage.completion_tokens,
-                    task or "unknown"
-                )
-                logger.info(
-                    f"\n{colored('✅ API Response', 'green', attrs=['bold'])}\n"
-                    f"Response preview: {colored(response_preview + '...', 'white')}\n"
-                    f"Tokens: {colored(f'Input={response.usage.prompt_tokens}, Output={response.usage.completion_tokens}', 'yellow')}"
-                )
-                return response.choices[0].message.content
-            else:
-                raise ValueError(f"Invalid API_PROVIDER: {Config.API_PROVIDER}")
-        except Exception as e:
-            logger.error(
-                f"\n{colored('❌ API Error', 'red', attrs=['bold'])}\n"
-                f"Error: {colored(str(e), 'red')}"
-            )
-            return None
-    
-class MinimalDatabaseStub:
-    """Minimal database stub that provides just enough for the mindmap generator."""
-    @staticmethod
-    async def get_document_by_id(document_id: str) -> Dict[str, Any]:
-        """Stub that returns minimal document info."""
-        return {
-            "id": document_id,
-            "original_file_name": f"document_{document_id}.txt",
-            "sanitized_filename": document_id,
-            "status": "processing",
-            "progress_percentage": 0
-        }
-        
-    @staticmethod
-    async def get_optimized_text(document_id: str, request_id: str) -> Optional[str]:
-        """In our simplified version, this just returns the raw text content."""
-        return MinimalDatabaseStub._stored_text
-        
-    @staticmethod
-    async def update_document_status(*args, **kwargs) -> Dict[str, Any]:
-        """Stub that just returns success."""
-        return {"status": "success"}
-        
-    @staticmethod
-    async def add_token_usage(*args, **kwargs) -> None:
-        """Stub that does nothing."""
-        pass
-
-    # Add a way to store the text content
-    _stored_text = ""
-    
-    @classmethod
-    def store_text(cls, text: str):
-        """Store text content for later retrieval."""
-        cls._stored_text = text
-
-async def initialize_db():
-    """Minimal DB initialization that just returns our stub."""
-    return MinimalDatabaseStub()
-
-class DocumentType(Enum):
-    """Enumeration of supported document types."""
-    TECHNICAL = auto()
-    SCIENTIFIC = auto()
-    NARRATIVE = auto()
-    BUSINESS = auto()
-    ACADEMIC = auto()
-    LEGAL = auto()      
-    MEDICAL = auto()    
-    INSTRUCTIONAL = auto() 
-    ANALYTICAL = auto() 
-    PROCEDURAL = auto() 
-    GENERAL = auto()
-
-    @classmethod
-    def from_str(cls, value: str) -> 'DocumentType':
-        """Convert string to DocumentType enum."""
-        try:
-            return cls[value.upper()]
-        except KeyError:
-            return cls.GENERAL
-
-class NodeShape(Enum):
-    """Enumeration of node shapes for the mindmap structure."""
-    ROOT = '(())'        # Double circle for root node (📄)
-    TOPIC = '(())'       # Double circle for main topics
-    SUBTOPIC = '()'      # Single circle for subtopics
-    DETAIL = '[]'        # Square brackets for details
-
-    def apply(self, text: str) -> str:
-        """Apply the shape to the text."""
-        return {
-            self.ROOT: f"(({text}))",
-            self.TOPIC: f"(({text}))",
-            self.SUBTOPIC: f"({text})",
-            self.DETAIL: f"[{text}]"
-        }[self]
 
 class MindMapGenerationError(Exception):
     """Custom exception for mindmap generation errors."""
     pass
 
-class ContentItem:
-    """Class to track content items with their context information."""
-    def __init__(self, text: str, path: List[str], node_type: str, importance: str = None):
-        self.text = text
-        self.path = path
-        self.path_str = ' → '.join(path)
-        self.node_type = node_type
-        self.importance = importance
-        
-    def __str__(self):
-        return f"{self.text} ({self.node_type} at {self.path_str})"
+
 
 class MindMapGenerator:
     def __init__(self):
@@ -601,10 +63,11 @@ class MindMapGenerator:
             'timeout': 30
         }
         self._initialize_prompts()
+        self._emoji_file = os.path.join(os.path.dirname(__file__), "emoji_cache.json")
+        self._load_emoji_cache()
+        self.llm_client = LLMClient(self.optimizer, self.retry_config)
         self.numbered_pattern = re.compile(r'^\s*\d+\.\s*(.+)$')
         self.parentheses_regex = re.compile(r'(\((?!\()|(?<!\))\))')
-        self.control_chars_regex = re.compile(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]')
-        self.unescaped_quotes_regex = re.compile(r'(?<!\\)"(?!,|\s*[}\]])')
         self.percentage_regex1 = re.compile(r'(\d+(?:\.\d+)?)\s+(?=percent|of\s|share|margin|CAGR)', re.IGNORECASE)
         self.percentage_regex2 = re.compile(r'\s+percent\b', re.IGNORECASE)
         self.backslash_regex = re.compile(r'\\{2,}')
@@ -612,16 +75,8 @@ class MindMapGenerator:
         self.paren_replacements = {
             '(': '❨',  # U+2768 MEDIUM LEFT PARENTHESIS ORNAMENT
             ')': '❩',  # U+2769 MEDIUM RIGHT PARENTHESIS ORNAMENT
-            # Backup alternatives if needed:
-            # '(': '⟮',  # U+27EE MATHEMATICAL LEFT FLATTENED PARENTHESIS
-            # ')': '⟯',  # U+27EF MATHEMATICAL RIGHT FLATTENED PARENTHESIS
-            # Or:
-            # '(': '﹙',  # U+FE59 SMALL LEFT PARENTHESIS
-            # ')': '﹚',  # U+FE5A SMALL RIGHT PARENTHESIS
         }
-        self._emoji_file = os.path.join(os.path.dirname(__file__), "emoji_cache.json")
-        self._load_emoji_cache()
-        
+
     def _load_emoji_cache(self):
         """Load emoji cache from disk if available."""
         try:
@@ -647,269 +102,6 @@ class MindMapGenerator:
             logger.info(f"Saved {len(self._emoji_cache)} emoji mappings to cache")
         except Exception as e:
             logger.warning(f"Failed to save emoji cache: {str(e)}")
-                
-    async def _retry_with_exponential_backoff(self, func, *args, **kwargs):
-        """Enhanced retry mechanism with jitter and circuit breaker."""
-        retries = 0
-        max_retries = self.retry_config['max_retries']
-        base_delay = self.retry_config['base_delay']
-        max_delay = self.retry_config['max_delay']
-        
-        while retries < max_retries:
-            try:
-                return await func(*args, **kwargs)
-            except Exception as e:
-                retries += 1
-                if retries >= max_retries:
-                    raise
-                    
-                delay = min(base_delay * (2 ** (retries - 1)), max_delay)
-                actual_delay = random.uniform(0, delay)
-                
-                logger.warning(f"Attempt {retries}/{max_retries} failed: {str(e)}. "
-                            f"Retrying in {actual_delay:.2f}s")
-                
-                await asyncio.sleep(actual_delay)
-
-    def _validate_parsed_response(self, parsed: Any, expected_type: str) -> Union[List[Any], Dict[str, Any]]:
-        """Validate and normalize parsed JSON response."""
-        if expected_type == "array":
-            if isinstance(parsed, list):
-                return parsed
-            elif isinstance(parsed, dict):
-                # Try to extract array from common fields
-                for key in ['items', 'topics', 'elements', 'data']:
-                    if isinstance(parsed.get(key), list):
-                        return parsed[key]
-                logger.debug("No array found in dictionary fields")
-                return []
-            else:
-                logger.debug(f"Unexpected type for array response: {type(parsed)}")
-                return []
-        
-        return parsed if isinstance(parsed, dict) else {}
-
-    def _clean_detail_response(self, response: str) -> List[Dict[str, str]]:
-        """Clean and validate detail responses."""
-        try:
-            # Remove markdown code blocks if present
-            if '```' in response:
-                matches = re.findall(r'```(?:json)?(.*?)```', response, re.DOTALL)
-                if matches:
-                    response = matches[0].strip()
-                    
-            # Basic cleanup
-            response = response.strip()
-            
-            try:
-                parsed = json.loads(response)
-            except json.JSONDecodeError:
-                # Try cleaning quotes and parse again
-                response = response.replace("'", '"')
-                try:
-                    parsed = json.loads(response)
-                except json.JSONDecodeError:
-                    return []
-                    
-            # Handle both array and single object responses
-            if isinstance(parsed, dict):
-                parsed = [parsed]
-                
-            # Validate each detail
-            valid_details = []
-            seen_texts = set()
-            
-            for item in parsed:
-                try:
-                    text = str(item.get('text', '')).strip()
-                    importance = str(item.get('importance', 'medium')).lower()
-                    
-                    # Skip empty text or duplicates
-                    if not text or text in seen_texts:
-                        continue
-                        
-                    if importance not in ['high', 'medium', 'low']:
-                        importance = 'medium'
-                        
-                    seen_texts.add(text)
-                    valid_details.append({
-                        'text': text,
-                        'importance': importance
-                    })
-                    
-                except Exception as e:
-                    logger.debug(f"Error processing detail item: {str(e)}")
-                    continue
-                    
-            return valid_details
-            
-        except Exception as e:
-            logger.error(f"Error in detail cleaning: {str(e)}")
-            return []
-
-    def _clean_json_response(self, response: str) -> str:
-        """Enhanced JSON response cleaning with advanced recovery and validation."""
-        if not response or not isinstance(response, str):
-            logger.warning("Empty or invalid response type received")
-            return "[]"  # Return empty array as safe default
-            
-        try:
-            # First try to find complete JSON structure
-            def find_json_structure(text: str) -> Optional[str]:
-                # Look for array pattern
-                array_match = re.search(r'\[[\s\S]*?\](?=\s*$|\s*[,}\]])', text)
-                if array_match:
-                    return array_match.group(0)
-                    
-                # Look for object pattern
-                object_match = re.search(r'\{[\s\S]*?\}(?=\s*$|\s*[,\]}])', text)
-                if object_match:
-                    return object_match.group(0)
-                
-                return None
-
-            # Handle markdown code blocks first
-            if '```' in response:
-                code_blocks = re.findall(r'```(?:json)?([\s\S]*?)```', response)
-                if code_blocks:
-                    for block in code_blocks:
-                        if json_struct := find_json_structure(block):
-                            response = json_struct
-                            break
-            else:
-                if json_struct := find_json_structure(response):
-                    response = json_struct
-
-            # Advanced character cleaning
-            def clean_characters(self, text: str) -> str:
-                # Remove control characters while preserving valid whitespace
-                text = self.control_chars_regex.sub('', text)
-                
-                # Normalize quotes and apostrophes
-                text = text.replace('“', '"').replace('”', '"')  # Smart double quotes to straight double quotes
-                text = text.replace('’', "'").replace('‘', "'")  # Smart single quotes to straight single quotes
-                text = text.replace("'", '"')  # Convert single quotes to double quotes
-                
-                # Normalize whitespace
-                text = ' '.join(text.split())
-                
-                # Escape unescaped quotes within strings
-                text = self.unescaped_quotes_regex.sub('\\"', text)
-                
-                return text
-
-            response = clean_characters(response)
-
-            # Fix common JSON syntax issues
-            def fix_json_syntax(text: str) -> str:
-                # Fix trailing/multiple commas
-                text = re.sub(r',\s*([\]}])', r'\1', text)  # Remove trailing commas
-                text = re.sub(r',\s*,', ',', text)  # Remove multiple commas
-                
-                # Fix missing quotes around keys
-                text = re.sub(r'(\{|\,)\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', text)
-                
-                # Ensure proper array/object closure
-                brackets_stack = []
-                for char in text:
-                    if char in '[{':
-                        brackets_stack.append(char)
-                    elif char in ']}':
-                        if not brackets_stack:
-                            continue  # Skip unmatched closing brackets
-                        if (char == ']' and brackets_stack[-1] == '[') or (char == '}' and brackets_stack[-1] == '{'):
-                            brackets_stack.pop()
-                        
-                # Close any unclosed brackets
-                while brackets_stack:
-                    text += ']' if brackets_stack.pop() == '[' else '}'
-                
-                return text
-
-            response = fix_json_syntax(response)
-
-            # Validate and normalize structure
-            def normalize_structure(text: str) -> str:
-                try:
-                    # Try parsing to validate
-                    parsed = json.loads(text)
-                    
-                    # Ensure we have an array
-                    if isinstance(parsed, dict):
-                        # Convert single object to array
-                        return json.dumps([parsed])
-                    elif isinstance(parsed, list):
-                        return json.dumps(parsed)
-                    else:
-                        return json.dumps([str(parsed)])
-                        
-                except json.JSONDecodeError:
-                    # If still invalid, attempt emergency recovery
-                    if text.strip().startswith('{'):
-                        return f"[{text.strip()}]"  # Wrap object in array
-                    elif not text.strip().startswith('['):
-                        return f"[{text.strip()}]"  # Wrap content in array
-                    return text
-            
-            response = normalize_structure(response)
-
-            # Final validation
-            try:
-                json.loads(response)  # Verify we have valid JSON
-                return response
-            except json.JSONDecodeError as e:
-                logger.warning(f"Final JSON validation failed: {str(e)}")
-                # If all cleaning failed, return empty array
-                return "[]"
-
-        except Exception as e:
-            logger.error(f"Error during JSON response cleaning: {str(e)}")
-            return "[]"
-
-    def _parse_llm_response(self, response: str, expected_type: str = "array") -> Union[List[Any], Dict[str, Any]]:
-        """Parse and validate LLM response."""
-        if not response or not isinstance(response, str):
-            logger.warning("Empty or invalid response type received")
-            return [] if expected_type == "array" else {}
-
-        try:
-            # Extract JSON from markdown code blocks if present
-            if '```' in response:
-                matches = re.findall(r'```(?:json)?(.*?)```', response, re.DOTALL)
-                if matches:
-                    response = matches[0].strip()
-
-            # Basic cleanup
-            response = response.strip()
-            
-            try:
-                parsed = json.loads(response)
-                return self._validate_parsed_response(parsed, expected_type)
-            except json.JSONDecodeError:
-                # Try cleaning quotes and parse again
-                response = response.replace("'", '"')
-                try:
-                    parsed = json.loads(response)
-                    return self._validate_parsed_response(parsed, expected_type)
-                except json.JSONDecodeError:
-                    # If we still can't parse, try emergency extraction for arrays
-                    if expected_type == "array":
-                        items = re.findall(r'"([^"]+)"', response)
-                        if items:
-                            return items
-
-                        # Try line-by-line extraction
-                        lines = response.strip().split('\n')
-                        items = [line.strip().strip(',"\'[]{}') for line in lines 
-                                if line.strip() and not line.strip().startswith(('```', '{', '}'))]
-                        if items:
-                            return items
-
-                    return [] if expected_type == "array" else {}
-
-        except Exception as e:
-            logger.error(f"Unexpected error in JSON parsing: {str(e)}")
-            return [] if expected_type == "array" else {}
 
     def _get_importance_marker(self, importance: str) -> str:
         """Get the appropriate diamond marker based on importance level."""
@@ -965,7 +157,7 @@ class MindMapGenerator:
 
             Return ONLY the emoji character without any explanation."""
             
-            response = await self._retry_generate_completion(
+            response = await self.llm_client._retry_generate_completion(
                 prompt,
                 max_tokens=20,
                 request_id='',
@@ -1783,7 +975,7 @@ class MindMapGenerator:
     Document excerpt:
     {summary_content}"""
         try:
-            response = await self._retry_generate_completion(
+            response = await self.llm_client._retry_generate_completion(
                 prompt,
                 max_tokens=50,
                 request_id=request_id,
@@ -2109,7 +1301,7 @@ class MindMapGenerator:
         where X is a very brief explanation."""
 
         try:
-            response = await self._retry_generate_completion(
+            response = await self.llm_client._retry_generate_completion(
                 prompt,
                 max_tokens=50,
                 request_id='similarity_check',
@@ -2980,7 +2172,7 @@ class MindMapGenerator:
                 logger.debug(f"Raw topics response for chunk: {response}", 
                             extra={"request_id": request_id})
                 
-                parsed_response = self._parse_llm_response(response, "array")
+                parsed_response = self.llm_client._parse_llm_response(response, "array")
                 
                 chunk_topics = []
                 seen_names = set()
@@ -3044,7 +2236,7 @@ class MindMapGenerator:
                     return []
                     
                 async with semaphore:
-                    return await self._retry_with_exponential_backoff(
+                    return await self.llm_client._retry_with_exponential_backoff(
                         lambda: extract_from_chunk(chunk)
                     )
 
@@ -3118,14 +2310,14 @@ class MindMapGenerator:
                 Example: ["First Consolidated Topic", "Second Consolidated Topic"]"""
 
                 try:
-                    response = await self._retry_generate_completion(
+                    response = await self.llm_client._retry_generate_completion(
                         consolidation_prompt,
                         max_tokens=1000,
                         request_id=request_id,
                         task="consolidating_topics"
                     )
                     
-                    consolidated_names = self._parse_llm_response(response, "array")
+                    consolidated_names = self.llm_client._parse_llm_response(response, "array")
                     
                     if consolidated_names and len(consolidated_names) >= MIN_TOPICS:
                         # Create new topics from consolidated names
@@ -3298,7 +2490,7 @@ class MindMapGenerator:
                 logger.debug(f"Raw subtopics response for {topic['name']}: {response}", 
                             extra={"request_id": request_id})
                 
-                parsed_response = self._parse_llm_response(response, "array")
+                parsed_response = self.llm_client._parse_llm_response(response, "array")
                 
                 chunk_subtopics = []
                 seen_names = {}
@@ -3340,7 +2532,7 @@ class MindMapGenerator:
             async def process_chunk(chunk: str) -> List[Dict[str, Any]]:
                 """Process a single chunk with semaphore control."""
                 async with semaphore:
-                    return await self._retry_with_exponential_backoff(
+                    return await self.llm_client._retry_with_exponential_backoff(
                         lambda: extract_from_chunk(chunk)
                     )
 
@@ -3381,14 +2573,14 @@ class MindMapGenerator:
             Example: ["First Consolidated Subtopic", "Second Consolidated Subtopic"]"""
 
             try:
-                consolidation_response = await self._retry_generate_completion(
+                consolidation_response = await self.llm_client._retry_generate_completion(
                     consolidation_prompt,
                     max_tokens=1000,
                     request_id=request_id,
                     task=f"consolidate_subtopics_{topic['name']}"
                 )
                 
-                consolidated_names = self._parse_llm_response(consolidation_response, "array")
+                consolidated_names = self.llm_client._parse_llm_response(consolidation_response, "array")
                 
                 if consolidated_names:
                     seen_names = {}
@@ -3557,7 +2749,7 @@ class MindMapGenerator:
                     task=f"extracting_details_{subtopic['name']}"
                 )
                 
-                raw_details = self._clean_detail_response(response)
+                raw_details = self.llm_client._clean_detail_response(response)
                 chunk_details = []
                 seen_texts = {}
                 
@@ -3608,7 +2800,7 @@ class MindMapGenerator:
                     return []
                     
                 async with semaphore:
-                    chunk_details = await self._retry_with_exponential_backoff(
+                    chunk_details = await self.llm_client._retry_with_exponential_backoff(
                         lambda: extract_from_chunk(chunk)
                     )
                     
@@ -3661,14 +2853,14 @@ class MindMapGenerator:
             ]"""
 
             try:
-                consolidation_response = await self._retry_generate_completion(
+                consolidation_response = await self.llm_client._retry_generate_completion(
                     consolidation_prompt,
                     max_tokens=1000,
                     request_id=request_id,
                     task=f"consolidate_details_{subtopic['name']}"
                 )
                 
-                consolidated_raw = self._clean_detail_response(consolidation_response)
+                consolidated_raw = self.llm_client._clean_detail_response(consolidation_response)
                 
                 if consolidated_raw:
                     seen_texts = {}
@@ -3767,30 +2959,6 @@ class MindMapGenerator:
                 logger.info(f"Returning {len(self._current_details)} collected details despite error")
                 return self._current_details[:MAX_DETAILS]
             return []
-            
-    async def _retry_generate_completion(self, prompt: str, max_tokens: int, request_id: str, task: str) -> str:
-        """Retry the LLM completion in case of failures with exponential backoff."""
-        retries = 0
-        base_delay = 1  # Start with 1 second delay
-        
-        while retries < self.config['max_retries']:
-            try:
-                response = await self.optimizer.generate_completion(
-                    prompt,
-                    max_tokens=max_tokens,
-                    request_id=request_id,
-                    task=task
-                )
-                return response
-            except Exception as e:
-                retries += 1
-                if retries >= self.config['max_retries']:
-                    logger.error(f"Exceeded maximum retries for {task}", extra={"request_id": request_id})
-                    raise
-                
-                delay = min(base_delay * (2 ** (retries - 1)), 10)  # Cap at 10 seconds
-                logger.warning(f"Retrying {task} ({retries}/{self.config['max_retries']}) after {delay}s: {str(e)}", extra={"request_id": request_id})
-                await asyncio.sleep(delay)
 
     async def verify_mindmap_against_source(self, mindmap_data: Dict[str, Any], original_document: str) -> Dict[str, Any]:
         """Verify all mindmap nodes against the original document with lenient criteria and improved error handling."""
@@ -3938,7 +3106,7 @@ class MindMapGenerator:
             IMPORTANT: Remember to be GENEROUS in your interpretation. If there's any reasonable way the content could be derived from the document, even through multiple logical steps, mark it as verified. Only reject content that introduces completely new facts not derivable from the document or directly contradicts it."""
 
                 try:
-                    response = await self._retry_generate_completion(
+                    response = await self.llm_client._retry_generate_completion(
                         prompt,
                         max_tokens=150,
                         request_id='verify_node',
@@ -4250,191 +3418,3 @@ class MindMapGenerator:
         
         return markdown_text.strip()
     
-def generate_mermaid_html(mermaid_code):
-    # Remove leading/trailing triple backticks if present
-    mermaid_code = mermaid_code.strip()
-    if mermaid_code.startswith('```') and mermaid_code.endswith('```'):
-        mermaid_code = mermaid_code[3:-3].strip()
-    # Create the data object to be encoded
-    data = {
-        "code": mermaid_code,
-        "mermaid": {"theme": "default"}
-    }
-    json_string = json.dumps(data)
-    compressed_data = zlib.compress(json_string.encode('utf-8'), level=9)
-    base64_string = base64.urlsafe_b64encode(compressed_data).decode('utf-8').rstrip('=')
-    edit_url = f'https://mermaid.live/edit#pako:{base64_string}'
-    # Now generate the HTML template
-    html_template = f'''<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Mermaid Mindmap</title>
-  <!-- Tailwind CSS -->
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-  <!-- Mermaid JS -->
-  <script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.0/dist/mermaid.min.js"></script>
-  <style>
-    body {{
-      margin: 0;
-      padding: 0;
-    }}
-    #mermaid {{
-      width: 100%;
-      height: calc(100vh - 64px); /* Adjust height considering header */
-      overflow: auto;
-    }}
-  </style>
-</head>
-<body class="bg-gray-100">
-  <div class="flex items-center justify-between p-4 bg-white shadow">
-    <h1 class="text-xl font-bold">Mermaid Mindmap</h1>
-    <a href="{edit_url}" target="_blank" id="editButton" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">Edit in Mermaid Live Editor</a>
-  </div>
-  <div id="mermaid" class="p-4">
-    <pre class="mermaid">
-{mermaid_code}
-    </pre>
-  </div>
-  <script>
-    mermaid.initialize({{
-      startOnLoad: true,
-      securityLevel: 'loose',
-      theme: 'default',
-      mindmap: {{
-        useMaxWidth: true
-      }},
-      themeConfig: {{
-        controlBar: true
-      }}
-    }});
-  </script>
-</body>
-</html>'''
-    return html_template
-
-async def generate_document_mindmap(document_id: str, request_id: str) -> Tuple[str, str]:
-    """Generate both Mermaid mindmap and Markdown outline for a document.
-    
-    Args:
-        document_id (str): The ID of the document to process
-        request_id (str): Unique identifier for request tracking
-        
-    Returns:
-        Tuple[str, str]: (mindmap_file_path, markdown_file_path)
-    """
-    try:
-        generator = MindMapGenerator()
-        db = await initialize_db()
-        document = await db.get_document_by_id(document_id)
-        if not document:
-            logger.error(f"Document not found: {document_id}", extra={"request_id": request_id})
-            return "", ""
-
-        # Define file paths for both formats
-        mindmap_file_path = f"generated_mindmaps/{document['sanitized_filename']}_mermaid_mindmap__{Config.API_PROVIDER.lower()}.txt"
-        mindmap_html_file_path = f"generated_mindmaps/{document['sanitized_filename']}_mindmap__{Config.API_PROVIDER.lower()}.html"
-        markdown_file_path = f"generated_mindmaps/{document['sanitized_filename']}_mindmap_outline__{Config.API_PROVIDER.lower()}.md"
-        
-        # Check if both files already exist
-        if os.path.exists(mindmap_file_path) and os.path.exists(markdown_file_path):
-            logger.info(f"Both mindmap and markdown already exist for document {document_id}. Reusing existing files.", extra={"request_id": request_id})
-            return mindmap_file_path, markdown_file_path
-
-        optimized_text = await db.get_optimized_text(document_id, request_id)
-        if not optimized_text:
-            logger.error(f"Optimized text not found for document: {document_id}", extra={"request_id": request_id})
-            return "", ""
-
-        # Generate mindmap
-        mermaid_syntax = await generator.generate_mindmap(optimized_text, request_id)
-        
-        # Convert to HTML
-        mermaid_html = generate_mermaid_html(mermaid_syntax)
-        
-        # Convert to markdown
-        markdown_outline = generator._convert_mindmap_to_markdown(mermaid_syntax)
-
-        # Save all 3 formats
-        os.makedirs(os.path.dirname(mindmap_file_path), exist_ok=True)
-        
-        async with aiofiles.open(mindmap_file_path, 'w', encoding='utf-8') as f:
-            await f.write(mermaid_syntax)
-            
-        async with aiofiles.open(mindmap_html_file_path, 'w', encoding='utf-8') as f:
-            await f.write(mermaid_html)
-            
-        async with aiofiles.open(markdown_file_path, 'w', encoding='utf-8') as f:
-            await f.write(markdown_outline)
-
-        logger.info(f"Mindmap and associated html/markdown generated successfully for document {document_id}", extra={"request_id": request_id})
-        return mindmap_file_path, mindmap_html_file_path, markdown_file_path
-        
-    except Exception as e:
-        logger.error(f"Error generating mindmap and associated html/markdown for document {document_id}: {str(e)}", extra={"request_id": request_id})
-        return "", ""
-
-async def process_text_file(filepath: str):
-    """Process a single text file and generate mindmap outputs."""
-    logger = get_logger()
-    try:
-        # Read the input file
-        with open(filepath, 'r', encoding='utf-8') as f:
-            content = f.read()
-        # Store content in our stub database
-        MinimalDatabaseStub.store_text(content)
-        # Generate a unique document ID based on content hash
-        content_hash = hashlib.md5(content.encode()).hexdigest()[:8]
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        base_filename = os.path.splitext(os.path.basename(filepath))[0]
-        document_id = f"{base_filename}_{content_hash}_{timestamp}"
-        # Initialize the mindmap generator
-        generator = MindMapGenerator()
-        # Generate the mindmap
-        mindmap = await generator.generate_mindmap(content, request_id=document_id)
-        # Generate HTML
-        html = generate_mermaid_html(mindmap)
-        # Generate markdown outline
-        markdown_outline = generator._convert_mindmap_to_markdown(mindmap)
-        # Create output directory if it doesn't exist
-        os.makedirs("mindmap_outputs", exist_ok=True)
-        # Save outputs with simple names based on input file
-        output_files = {
-            f"mindmap_outputs/{base_filename}_mindmap__{Config.API_PROVIDER.lower()}.txt": mindmap,
-            f"mindmap_outputs/{base_filename}_mindmap__{Config.API_PROVIDER.lower()}.html": html,
-            f"mindmap_outputs/{base_filename}_mindmap_outline__{Config.API_PROVIDER.lower()}.md": markdown_outline
-        }
-        # Save all outputs
-        for filename, content in output_files.items():
-            with open(filename, "w", encoding="utf-8") as f:
-                f.write(content)
-                logger.info(f"Saved {filename}")
-        
-        logger.info("Mindmap generation completed successfully!")
-        return output_files
-    except Exception as e:
-        logger.error(f"Error processing file: {str(e)}")
-        raise
-    
-async def main():
-    input_file = "sample_input_document_as_markdown__durnovo_memo.md"  # <-- Change this to your input file path
-    # input_file = "sample_input_document_as_markdown__small.md"
-    try:
-        if not os.path.exists(input_file):
-            raise FileNotFoundError(f"Input file not found: {input_file}")
-            
-        # Process the file
-        logger.info(f"Generating mindmap for {input_file}")
-        output_files = await process_text_file(input_file)
-        
-        # Print summary
-        print("\nMindmap Generation Complete!")
-        print("Generated files:")
-        for filename in output_files:
-            print(f"- {filename}")
-            
-    except Exception as e:
-        logger.error(f"Error: {str(e)}")
-        raise
-if __name__ == "__main__":
-    asyncio.run(main())
