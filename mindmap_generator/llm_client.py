@@ -14,6 +14,8 @@ class LLMClient:
     def __init__(self, optimizer: DocumentOptimizer, retry_config: Dict[str, Any]):
         self.optimizer = optimizer
         self.retry_config = retry_config
+        self.control_chars_regex = re.compile(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]')
+        self.unescaped_quotes_regex = re.compile(r'(?<!\\)"(?!,|\s*[}\]])')
 
     async def _retry_with_exponential_backoff(self, func, *args, **kwargs):
         """Enhanced retry mechanism with jitter and circuit breaker."""
